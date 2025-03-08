@@ -9,8 +9,7 @@ import java.util.List;
 
 public class Main {
     public static void main(String[] args) {
-        try {
-            MysqlDriver driver = MysqlDriver.getInstance("jdbc:mysql://localhost:3306/biblioteca-test", "naturalh", "password");
+        try (MysqlDriver driver = MysqlDriver.getInstance("jdbc:mysql://localhost:3306/biblioteca-test", "naturalh", "password")) {
             ORM orm = new ORM(driver);
 //            Generos genero = orm.find(Generos.class, 11, "libros");
 //            Autores autor = orm.find(Autores.class, 21, "libros");
@@ -19,8 +18,6 @@ public class Main {
             var editorial = new Editoriales("Penguin 12");
             var autores = List.of(new Autores("Among 1"));
             var generos = List.of(new Generos("Us 2"));
-
-            editorial.setEditorial_id(BigInteger.valueOf(3));
 
             Libros libro = new Libros("It", "2005",
                     editorial,

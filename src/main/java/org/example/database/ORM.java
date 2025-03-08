@@ -6,10 +6,7 @@ import org.example.annotations.PrimaryKey;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -185,12 +182,10 @@ public class ORM {
                             .findFirst()
                             .orElseThrow(RuntimeException::new);
 
-                    var stmt = connection.prepareStatement("SELECT 1 FROM " + tableName + " WHERE " + "`" + field.getName() + "_id`" + " = ?");
                     var value = primaryKeyField.get(relatedObj);
-
                     columns.add("`" + field.getName() + "_id`");
+
                     if (value != null) {
-                        stmt.setObject(1, value);
                         values.add(String.valueOf(primaryKeyField.get(relatedObj)));
                         continue;
                     }
@@ -218,7 +213,6 @@ public class ORM {
 
             // Construir e insertar
             String sql = "INSERT INTO " + tableName + " (" + columns + ") VALUES (" + values + ")";
-            System.out.println(sql);
 
             try (PreparedStatement stmt = connection.prepareStatement(sql)) {
                 stmt.executeUpdate(sql, PreparedStatement.RETURN_GENERATED_KEYS);
@@ -234,6 +228,8 @@ public class ORM {
                         primaryKeyField.set(obj, generatedKeys.getObject(1));
                     }
                 }
+            } catch (SQLIntegrityConstraintViolationException e) {
+                System.out.println("Error: " + e.getMessage());
             }
 
             Arrays.stream(obj.getClass().getDeclaredFields())
@@ -283,7 +279,6 @@ public class ORM {
             }
 
             String sql = "INSERT INTO " + joinTable + " (" + joinColumn + ", " + inverseJoinColumn + ") VALUES (?, ?)";
-            System.out.println(sql);
             try (PreparedStatement stmt = connection.prepareStatement(sql)) {
                 stmt.setObject(1, idValue);
                 stmt.setObject(2, relatedIdValue);
