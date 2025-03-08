@@ -25,7 +25,6 @@ public class ORM {
         var fields = clazz.getDeclaredFields();
         String primaryKey = fields[0].getName();
 
-
         String sql = "SELECT * FROM " + tableName + " WHERE " + primaryKey + " = ?";
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
