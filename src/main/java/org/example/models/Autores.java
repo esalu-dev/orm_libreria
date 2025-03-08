@@ -9,17 +9,20 @@ import java.util.List;
 
 public class Autores {
     @PrimaryKey
+    private
     BigInteger autor_id;
 
     @FieldInfo(size = 255)
+    private
     String nombre;
 
-    @ManyToMany(table = "libros_autores", joinColumn = "autor_id", inverseJoinColumn = "libro_id")
+    @ManyToMany(joinTable = "libros_autores", foreignKey = "autor_id", references = "libro_id")
+    private
     List<Libros> libros;
 
     public Autores(String nombre, List<Libros> libros) {
-        this.nombre = nombre;
-        this.libros = libros;
+        this.setNombre(nombre);
+        this.setLibros(libros);
     }
 
     public Autores() {
@@ -27,15 +30,38 @@ public class Autores {
     }
 
     public Autores(String nombre) {
-        this.nombre = nombre;
+        this.setNombre(nombre);
     }
 
     @Override
     public String toString() {
         return "Autores{" +
-                "autor_id=" + autor_id +
-                ", nombre='" + nombre + '\'' +
-                ", libros=" + libros +
+                "autor_id=" + getAutor_id() +
+                ", nombre='" + getNombre() + '\'' +
                 '}';
+    }
+
+    public BigInteger getAutor_id() {
+        return autor_id;
+    }
+
+    public void setAutor_id(BigInteger autor_id) {
+        this.autor_id = autor_id;
+    }
+
+    public String getNombre() {
+        return nombre;
+    }
+
+    public void setNombre(String nombre) {
+        this.nombre = nombre;
+    }
+
+    public List<Libros> getLibros() {
+        return libros;
+    }
+
+    public void setLibros(List<Libros> libros) {
+        this.libros = libros;
     }
 }

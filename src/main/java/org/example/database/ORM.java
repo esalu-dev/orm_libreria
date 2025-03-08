@@ -5,22 +5,49 @@ import org.example.annotations.ManyToOne;
 import org.example.annotations.PrimaryKey;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class ORM {
     private final Connection connection;
 
-    public ORM(MysqlDriver driver) {
+    public ORM(MysqlDriver driver) throws Exception {
         this.connection = driver.getConnection();
     }
 
+    public <T> void findFirst(T item) throws Exception {
+        String tableName = item.getClass().getSimpleName().toLowerCase();
+        String sql = "SELECT * FROM " + tableName + " LIMIT 1";
+
+        var stmt = connection.prepareStatement(sql);
+        var resultSet = stmt.executeQuery();
+
+        if (resultSet.next()) {
+            for (Field field : item.getClass().getDeclaredFields()) {
+                field.setAccessible(true);
+
+                if (field.isAnnotationPresent(ManyToOne.class)) {
+                    continue;
+                } else if (field.isAnnotationPresent(ManyToMany.class)) {
+                    var primaryField = Arrays.stream(item.getClass().getDeclaredFields())
+                                    .filter(f -> f.isAnnotationPresent(PrimaryKey.class))
+                                            .findFirst().orElseThrow(RuntimeException::new);
+                    primaryField.setAccessible(true);
+                    loadManyToManyRelation(item, field, primaryField.get(item), null);
+                } else {
+                    field.set(item, resultSet.getObject(field.getName()));
+                }
+            }
+        }
+    }
 
     public <T> T find(Class<T> clazz, Object id, String... relations) throws Exception {
-        String tableName = clazz.getSimpleName();
+        String tableName = clazz.getSimpleName().toLowerCase();
 
         var fields = clazz.getDeclaredFields();
         String primaryKey = fields[0].getName();
@@ -39,7 +66,7 @@ public class ORM {
                 if (field.isAnnotationPresent(ManyToOne.class)) {
                     loadManyToOneRelation(obj, field, rs);
                 } else if (field.isAnnotationPresent(ManyToMany.class) && contains(relations, field.getName())) {
-                    loadManyToManyRelation(obj, field, id);
+                    loadManyToManyRelation(obj, field, id, null);
                 } else {
                     field.set(obj, rs.getObject(field.getName()));
                 }
@@ -57,11 +84,11 @@ public class ORM {
         field.set(obj, relatedObj);
     }
 
-    private <T> void loadManyToManyRelation(T obj, Field field, Object id) throws Exception {
+    private <T> void loadManyToManyRelation(T obj, Field field, Object id, Object parent) throws Exception {
         ManyToMany annotation = field.getAnnotation(ManyToMany.class);
-        String table = annotation.table();
-        String joinColumn = annotation.joinColumn();
-        String inverseJoinColumn = annotation.inverseJoinColumn();
+        String table = annotation.joinTable();
+        String joinColumn = annotation.foreignKey();
+        String inverseJoinColumn = annotation.references();
         String relatedTable = field.getName();
 
         String sql = "SELECT * FROM " + relatedTable + " WHERE " + inverseJoinColumn +
@@ -73,9 +100,34 @@ public class ORM {
             ResultSet rs = stmt.executeQuery();
 
             while (rs.next()) {
-                Object relatedObj = Class.forName("models." + relatedTable).getDeclaredConstructor().newInstance();
+                var type = ((ParameterizedType)field.getGenericType()).getActualTypeArguments()[0];
+                var clazz = (Class<?>) type;
+                var constructor = clazz.getDeclaredConstructor();
+
+                Object relatedObj = constructor.newInstance();
                 for (Field relatedField : relatedObj.getClass().getDeclaredFields()) {
                     relatedField.setAccessible(true);
+
+                    if (relatedField.isAnnotationPresent(ManyToOne.class)) {
+                        continue;
+                    } else if (relatedField.isAnnotationPresent(ManyToMany.class)) {
+                        var joinFromRelated = relatedField.getAnnotation(ManyToMany.class).joinTable();
+                        var joinFromField = field.getAnnotation(ManyToMany.class).joinTable();
+
+                        // check if this field is actually the parent field
+                        if (joinFromRelated.equals(joinFromField) && parent != null) {
+                            relatedField.set(relatedObj, parent);
+                            continue;
+                        }
+
+                        var primaryField = Arrays.stream(relatedObj.getClass().getDeclaredFields())
+                                .filter(f -> f.isAnnotationPresent(PrimaryKey.class))
+                                .findFirst().orElseThrow(RuntimeException::new);
+                        primaryField.setAccessible(true);
+                        loadManyToManyRelation(relatedObj, relatedField, primaryField.get(relatedObj), relatedObjects);
+                        continue;
+                    }
+
                     relatedField.set(relatedObj, rs.getObject(relatedField.getName()));
                 }
                 relatedObjects.add(relatedObj);
@@ -145,9 +197,9 @@ public class ORM {
 
     private <T> void insertManyToMany(T obj, Field field) throws Exception {
         ManyToMany annotation = field.getAnnotation(ManyToMany.class);
-        String joinTable = annotation.table();
-        String joinColumn = annotation.joinColumn();
-        String inverseJoinColumn = annotation.inverseJoinColumn();
+        String joinTable = annotation.joinTable();
+        String joinColumn = annotation.foreignKey();
+        String inverseJoinColumn = annotation.references();
 
         field.setAccessible(true);
         List<?> relatedObjects = (List<?>) field.get(obj);

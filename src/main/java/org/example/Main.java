@@ -4,21 +4,27 @@ import org.example.database.MysqlDriver;
 import org.example.database.ORM;
 import org.example.models.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class Main {
     public static void main(String[] args) {
-        try (MysqlDriver driver = MysqlDriver.getInstance("jdbc:mysql://localhost:3306/biblioteca_copy", "root", "admin")) {
+        try (MysqlDriver driver = MysqlDriver.getInstance("jdbc:mysql://localhost:3306/biblioteca", "naturalh", "password")) {
             ORM orm = new ORM(driver);
-            Generos genero = orm.find(Generos.class, 11, "libros");
-            Autores autor = orm.find(Autores.class, 21, "libros");
-            Editoriales editorial = orm.find(Editoriales.class, 21);
-            Libros libro = new Libros("It", "2005", editorial, List.of(autor), List.of(genero));
-            orm.insert(libro);
-            System.out.println(editorial);
+            Libros libro = new Libros();
+            Generos genero = new Generos();
+            Autores autor = new Autores();
+            Editoriales editorial = new Editoriales();
+
+            orm.findFirst(libro);
+            orm.findFirst(genero);
+            orm.findFirst(autor);
+            orm.findFirst(editorial);
+
+            System.out.println(libro);
             System.out.println(genero);
             System.out.println(autor);
-
+            System.out.println(editorial);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
