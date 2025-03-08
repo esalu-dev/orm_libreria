@@ -2,19 +2,26 @@ package org.example;
 
 import org.example.database.MysqlDriver;
 import org.example.database.ORM;
-import org.example.models.Usuarios;
+import org.example.models.*;
 
 import java.sql.SQLException;
+import java.util.List;
 
 public class Main {
     public static void main(String[] args) {
         try {
-            MysqlDriver driver = MysqlDriver.getInstance("jdbc:mysql://localhost:3306/biblioteca", "root", "admin");
+            MysqlDriver driver = MysqlDriver.getInstance("jdbc:mysql://localhost:3306/biblioteca_copy", "root", "admin");
             ORM orm  = new ORM(driver);
-            Usuarios usuario = new Usuarios("test@test.com", "test", "password", "Test");
-            orm.insert(usuario);
-            System.out.println("Usuario insertado");
-        } catch (SQLException | IllegalAccessException e) {
+            Generos genero = orm.find(Generos.class, 11, "libros");
+            Autores autor = orm.find(Autores.class, 21, "libros");
+            Editoriales editorial = orm.find(Editoriales.class, 21);
+            Libros libro = new Libros("It","2005", editorial, List.of(autor), List.of(genero));
+            orm.insert(libro);
+            System.out.println(editorial);
+            System.out.println(genero);
+            System.out.println(autor);
+
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
