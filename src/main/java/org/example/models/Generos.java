@@ -10,8 +10,7 @@ import java.util.List;
 
 public class Generos {
     @PrimaryKey
-    private
-    BigInteger genero_id;
+    private BigInteger genero_id;
 
     @FieldInfo
     private String nombre;
@@ -28,10 +27,7 @@ public class Generos {
 
     @Override
     public String toString() {
-        return "Generos{" +
-                "genero_id=" + getGenero_id() +
-                ", nombre='" + getNombre() + '\'' +
-                '}';
+        return "Generos{" + "genero_id=" + getGenero_id() + ", nombre='" + getNombre() + '\'' + '}';
     }
 
     public BigInteger getGenero_id() {

@@ -7,6 +7,7 @@ public class SqlTypesMapper {
 
     static {
         TYPE_MAP.put("int", "INTEGER");
+        TYPE_MAP.put("java.math.BigInteger", "INTEGER");
         TYPE_MAP.put("java.lang.String", "VARCHAR");
     }
 

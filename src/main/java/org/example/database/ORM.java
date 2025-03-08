@@ -9,9 +9,11 @@ import java.lang.reflect.ParameterizedType;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.StringJoiner;
 
 public class ORM {
     private final Connection connection;
@@ -35,8 +37,8 @@ public class ORM {
                     continue;
                 } else if (field.isAnnotationPresent(ManyToMany.class)) {
                     var primaryField = Arrays.stream(item.getClass().getDeclaredFields())
-                                    .filter(f -> f.isAnnotationPresent(PrimaryKey.class))
-                                            .findFirst().orElseThrow(RuntimeException::new);
+                            .filter(f -> f.isAnnotationPresent(PrimaryKey.class))
+                            .findFirst().orElseThrow(RuntimeException::new);
                     primaryField.setAccessible(true);
                     loadManyToManyRelation(item, field, primaryField.get(item), null);
                 } else {
@@ -100,7 +102,7 @@ public class ORM {
             ResultSet rs = stmt.executeQuery();
 
             while (rs.next()) {
-                var type = ((ParameterizedType)field.getGenericType()).getActualTypeArguments()[0];
+                var type = ((ParameterizedType) field.getGenericType()).getActualTypeArguments()[0];
                 var clazz = (Class<?>) type;
                 var constructor = clazz.getDeclaredConstructor();
 
@@ -143,56 +145,111 @@ public class ORM {
         return false;
     }
 
+    private void disableForeignKeysCheck() throws SQLException {
+        var stmt = connection.prepareStatement("SET FOREIGN_KEY_CHECKS=0");
+        stmt.execute();
+    }
 
-    public <T> T insert(T obj) throws Exception {
+    private void enableForeignKeysCheck() throws SQLException {
+        var stmt = connection.prepareStatement("SET FOREIGN_KEY_CHECKS=1");
+        stmt.execute();
+    }
+
+
+    public <T> void insert(T obj) throws Exception {
         Class<?> clazz = obj.getClass();
-        String tableName = clazz.getSimpleName();
-        StringBuilder columns = new StringBuilder();
-        StringBuilder values = new StringBuilder();
+        String tableName = clazz.getSimpleName().toLowerCase();
+        StringJoiner columns = new StringJoiner(", ");
+        StringJoiner values = new StringJoiner(", ");
 
-        for (Field field : clazz.getDeclaredFields()) {
-            field.setAccessible(true);
-            if (field.isAnnotationPresent(PrimaryKey.class)) {
-                PrimaryKey primaryKey = field.getAnnotation(PrimaryKey.class);
-                if (primaryKey.autoincrement()) {
+        try {
+            disableForeignKeysCheck();
+
+            for (Field field : clazz.getDeclaredFields()) {
+                field.setAccessible(true);
+                if (field.isAnnotationPresent(PrimaryKey.class)) {
+                    PrimaryKey primaryKey = field.getAnnotation(PrimaryKey.class);
+                    if (primaryKey.autoincrement()) {
+                        continue;
+                    }
+                }
+
+                if (field.isAnnotationPresent(ManyToOne.class)) {
+                    // Relaciones 1:N (almacenar solo la clave foránea)
+                    Object relatedObj = field.get(obj);
+                    var primaryKeyField = Arrays.stream(relatedObj.getClass().getDeclaredFields())
+                            .filter(f -> {
+                                f.setAccessible(true);
+                                return f.isAnnotationPresent(PrimaryKey.class);
+                            })
+                            .findFirst()
+                            .orElseThrow(RuntimeException::new);
+
+                    var stmt = connection.prepareStatement("SELECT 1 FROM " + tableName + " WHERE " + "`" + field.getName() + "_id`" + " = ?");
+                    var value = primaryKeyField.get(relatedObj);
+
+                    columns.add("`" + field.getName() + "_id`");
+                    if (value != null) {
+                        stmt.setObject(1, value);
+                        values.add(String.valueOf(primaryKeyField.get(relatedObj)));
+                        continue;
+                    }
+
+                    insert(relatedObj);
+                    values.add(String.valueOf(primaryKeyField.get(relatedObj)));
+                    continue;
+                } else if (field.isAnnotationPresent(ManyToMany.class)) {
+//                    insertManyToMany(obj, field);
                     continue;
                 }
-            }
-
-            if (field.isAnnotationPresent(ManyToOne.class)) {
-                // Relaciones 1:N (almacenar solo la clave foránea)
-                Object relatedObj = field.get(obj);
-                if (relatedObj != null) {
-                    Field relatedIdField = relatedObj.getClass().getDeclaredFields()[0]; // Se asume que la PK es el primer campo
-                    relatedIdField.setAccessible(true);
-                    columns.append(field.getAnnotation(ManyToOne.class).column()).append(", ");
-                    values.append("'").append(relatedIdField.get(relatedObj)).append("', ");
-                }
-            } else if (!field.isAnnotationPresent(ManyToMany.class)) {
                 // Campos normales
-                columns.append(field.getName()).append(", ");
-                values.append("'").append(field.get(obj)).append("', ");
+
+                columns.add("`" + field.getName() + "`");
+                var parsedType = SqlTypesMapper.getSqlType(field.getType().getTypeName());
+
+                if (parsedType.equals("VARCHAR")) {
+                    values.add("'" + field.get(obj) + "'");
+                } else if (parsedType.equals("INTEGER")) {
+                    values.add(field.get(obj).toString());
+                } else {
+                    throw new RuntimeException("Unsupported type");
+                }
             }
-        }
 
-        // Quitar la última coma y espacio
-        if (columns.length() > 0) columns.setLength(columns.length() - 2);
-        if (values.length() > 0) values.setLength(values.length() - 2);
+            // Construir e insertar
+            String sql = "INSERT INTO " + tableName + " (" + columns + ") VALUES (" + values + ")";
+            System.out.println(sql);
 
-        // Construir e insertar
-        String sql = "INSERT INTO " + tableName + " (" + columns + ") VALUES (" + values + ")";
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.executeUpdate();
-        }
+            try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+                stmt.executeUpdate(sql, PreparedStatement.RETURN_GENERATED_KEYS);
 
-        // Insertar relaciones N:M
-        for (Field field : clazz.getDeclaredFields()) {
-            if (field.isAnnotationPresent(ManyToMany.class)) {
-                insertManyToMany(obj, field);
+                try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
+                    if (generatedKeys.next()) {
+                        var primaryKeyField = Arrays.stream(obj.getClass().getDeclaredFields())
+                                .filter(f -> f.isAnnotationPresent(PrimaryKey.class))
+                                .findFirst()
+                                .orElseThrow(RuntimeException::new);
+
+                        primaryKeyField.setAccessible(true);
+                        primaryKeyField.set(obj, generatedKeys.getObject(1));
+                    }
+                }
             }
-        }
 
-        return obj;
+            Arrays.stream(obj.getClass().getDeclaredFields())
+                    .filter(f -> f.isAnnotationPresent(ManyToMany.class))
+                    .forEach(f -> {
+                        try {
+                            insertManyToMany(obj, f);
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+        } catch (Exception e) {
+            throw new Exception(e);
+        } finally {
+            enableForeignKeysCheck();
+        }
     }
 
     private <T> void insertManyToMany(T obj, Field field) throws Exception {
@@ -205,16 +262,28 @@ public class ORM {
         List<?> relatedObjects = (List<?>) field.get(obj);
         if (relatedObjects == null) return;
 
-        Field idField = obj.getClass().getDeclaredFields()[0]; // Se asume que la PK es el primer campo
-        idField.setAccessible(true);
-        Object idValue = idField.get(obj);
+        var primaryKeyField = Arrays.stream(obj.getClass().getDeclaredFields())
+                .filter(f -> f.isAnnotationPresent(PrimaryKey.class))
+                .findFirst()
+                .orElseThrow(RuntimeException::new);
+        primaryKeyField.setAccessible(true);
+        Object idValue = primaryKeyField.get(obj);
 
         for (Object relatedObj : relatedObjects) {
-            Field relatedIdField = relatedObj.getClass().getDeclaredFields()[0]; // Se asume que la PK es el primer campo
-            relatedIdField.setAccessible(true);
-            Object relatedIdValue = relatedIdField.get(relatedObj);
+            var primaryRelationField = Arrays.stream(relatedObj.getClass().getDeclaredFields())
+                    .filter(f -> f.isAnnotationPresent(PrimaryKey.class))
+                    .findFirst()
+                    .orElseThrow(RuntimeException::new);
+            primaryRelationField.setAccessible(true);
+            Object relatedIdValue = primaryRelationField.get(relatedObj);
+
+            if (relatedIdValue == null) {
+                insert(relatedObj);
+                relatedIdValue = primaryRelationField.get(relatedObj);
+            }
 
             String sql = "INSERT INTO " + joinTable + " (" + joinColumn + ", " + inverseJoinColumn + ") VALUES (?, ?)";
+            System.out.println(sql);
             try (PreparedStatement stmt = connection.prepareStatement(sql)) {
                 stmt.setObject(1, idValue);
                 stmt.setObject(2, relatedIdValue);

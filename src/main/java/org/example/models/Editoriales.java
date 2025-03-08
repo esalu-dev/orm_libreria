@@ -7,25 +7,21 @@ import java.math.BigInteger;
 
 public class Editoriales {
     @PrimaryKey
-    BigInteger editorial_id;
+    private BigInteger editorial_id;
 
     @FieldInfo(size = 255)
-    String nombre;
+    private String nombre;
 
     public Editoriales(String nombre) {
-        this.nombre = nombre;
+        this.setNombre(nombre);
     }
 
     public Editoriales() {
-
     }
 
     @Override
     public String toString() {
-        return "Editoriales{" +
-                "editorial_id=" + editorial_id +
-                ", nombre='" + nombre + '\'' +
-                '}';
+        return "Editoriales{" + "editorial_id=" + getEditorial_id() + ", nombre='" + getNombre() + '\'' + '}';
     }
 
     public BigInteger getEditorial_id() {

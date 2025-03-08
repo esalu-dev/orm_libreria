@@ -10,28 +10,22 @@ import java.util.List;
 
 public class Libros {
     @PrimaryKey
-    private
-    BigInteger libro_id;
+    private BigInteger libro_id;
 
     @FieldInfo(size = 255)
-    private
-    String titulo;
+    private String titulo;
 
     @FieldInfo(size = 255)
-    private
-    String anio_publicacion;
+    private String anio_publicacion;
 
     @ManyToOne(column = "editorial_id")
-    private
-    Editoriales editorial;
+    private Editoriales editorial;
 
     @ManyToMany(joinTable = "libros_autores", foreignKey = "libro_id", references = "autor_id")
-    private
-    List<Autores> autores;
+    private List<Autores> autores;
 
     @ManyToMany(joinTable = "libros_generos", foreignKey = "libro_id", references = "genero_id")
-    private
-    List<Generos> generos;
+    private List<Generos> generos;
 
     public Libros() {
     }
@@ -46,13 +40,7 @@ public class Libros {
 
     @Override
     public String toString() {
-        return "Libros{" +
-                "libro_id=" + getLibro_id() +
-                ", titulo='" + getTitulo() + '\'' +
-                ", editorial=" + getEditorial() +
-                ", autores=" + getAutores() +
-                ", generos=" + getGeneros() +
-                '}';
+        return "Libros{" + "libro_id=" + getLibro_id() + ", titulo='" + getTitulo() + '\'' + ", editorial=" + getEditorial() + ", autores=" + getAutores() + ", generos=" + getGeneros() + '}';
     }
 
     public BigInteger getLibro_id() {
