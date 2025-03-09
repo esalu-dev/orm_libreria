@@ -290,6 +290,13 @@ public class ORM {
                 stmt.setObject(1, idValue);
                 stmt.setObject(2, relatedIdValue);
                 stmt.executeUpdate();
+            } catch (SQLIntegrityConstraintViolationException e) {
+                System.out.println("Error: " + e.getMessage());
+                return;
+            } catch (SQLException e) {
+                System.out.println("Error in sql: " + e.getMessage());
+                System.out.println(sql);
+                return;
             }
         }
     }

@@ -23,8 +23,8 @@ public class Main {
     public static void testFinds(ORM orm) throws Exception {
         Usuarios usuario = new Usuarios("example@domain.com", "user", "password", "this is a name");
         var editorial = new Editoriales("Penguin 12");
-        var autores = List.of(new Autores("Among 1"));
-        var generos = List.of(new Generos("Us 2"));
+        var autores = List.of(new Autores("Among 1"), new Autores("Among 2"));
+        var generos = List.of(new Generos("Us 1"), new Generos("Us 2"));
 
         Libros libro = new Libros("It", "2005",
                 editorial,
