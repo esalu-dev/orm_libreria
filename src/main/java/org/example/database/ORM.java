@@ -113,7 +113,6 @@ public class ORM {
                         var joinFromRelated = relatedField.getAnnotation(ManyToMany.class).joinTable();
                         var joinFromField = field.getAnnotation(ManyToMany.class).joinTable();
 
-                        // check if this field is actually the parent field
                         if (joinFromRelated.equals(joinFromField) && parent != null) {
                             relatedField.set(relatedObj, parent);
                             continue;
@@ -172,7 +171,6 @@ public class ORM {
                 }
 
                 if (field.isAnnotationPresent(ManyToOne.class)) {
-                    // Relaciones 1:N (almacenar solo la clave foránea)
                     Object relatedObj = field.get(obj);
                     var primaryKeyField = Arrays.stream(relatedObj.getClass().getDeclaredFields())
                             .filter(f -> {
@@ -194,24 +192,25 @@ public class ORM {
                     values.add(String.valueOf(primaryKeyField.get(relatedObj)));
                     continue;
                 } else if (field.isAnnotationPresent(ManyToMany.class)) {
-//                    insertManyToMany(obj, field);
                     continue;
                 }
-                // Campos normales
 
                 columns.add("`" + field.getName() + "`");
                 var parsedType = SqlTypesMapper.getSqlType(field.getType().getTypeName());
 
-                if (parsedType.equals("VARCHAR")) {
-                    values.add("'" + field.get(obj) + "'");
+                var value = field.get(obj);
+
+                if (value == null) {
+                    values.add("NULL");
+                } else if (parsedType.equals("VARCHAR") || parsedType.equals("DATETIME") || parsedType.equals("DATE")) {
+                    values.add("'" + value + "'");
                 } else if (parsedType.equals("INTEGER")) {
-                    values.add(field.get(obj).toString());
+                    values.add(value.toString());
                 } else {
                     throw new RuntimeException("Unsupported type");
                 }
             }
 
-            // Construir e insertar
             String sql = "INSERT INTO " + tableName + " (" + columns + ") VALUES (" + values + ")";
 
             try (PreparedStatement stmt = connection.prepareStatement(sql)) {
@@ -227,9 +226,17 @@ public class ORM {
                         primaryKeyField.setAccessible(true);
                         primaryKeyField.set(obj, generatedKeys.getObject(1));
                     }
+                } catch (Exception e) {
+                    System.out.println("Error in generated keys: " + e.getMessage());
                 }
+
             } catch (SQLIntegrityConstraintViolationException e) {
                 System.out.println("Error: " + e.getMessage());
+                return;
+            } catch (SQLException e) {
+                System.out.println("Error in sql: " + e.getMessage());
+                System.out.println(sql);
+                return;
             }
 
             Arrays.stream(obj.getClass().getDeclaredFields())
