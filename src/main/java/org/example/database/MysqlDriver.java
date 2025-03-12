@@ -4,7 +4,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
-public class MysqlDriver {
+public class MysqlDriver implements AutoCloseable {
     private static MysqlDriver instance;
     private Connection connection;
     private final String dsn;
