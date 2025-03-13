@@ -4,6 +4,7 @@ import org.example.database.MysqlDriver;
 import org.example.database.ORM;
 import org.example.models.*;
 
+import java.math.BigInteger;
 import java.sql.Timestamp;
 import java.util.Date;
 import java.util.List;
@@ -16,8 +17,6 @@ public class Main {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-
-
     }
 
     public static void testFinds(ORM orm) throws Exception {
@@ -36,5 +35,7 @@ public class Main {
 //        orm.insert(usuario); // can work with this uncommented too
 //        orm.insert(libro);
         orm.insert(prestamo);
+//        prestamo.setPrestamo_id(BigInteger.valueOf(1));
+        orm.delete(prestamo);
     }
 }

@@ -255,6 +255,31 @@ public class ORM {
         }
     }
 
+    public <T> void delete(T item) throws SQLException {
+        Class<?> clazz = item.getClass();
+        String tableName = clazz.getSimpleName().toLowerCase();
+        var primaryField = Arrays.stream(clazz.getDeclaredFields())
+                .filter(f -> f.isAnnotationPresent(PrimaryKey.class))
+                .findFirst()
+                .orElseThrow(RuntimeException::new);
+
+        try {
+            primaryField.setAccessible(true);
+            String sql = "DELETE FROM " + tableName + " WHERE " + primaryField.getName() + " = ?";
+
+            try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+                stmt.setObject(1, primaryField.get(item));
+                stmt.executeUpdate();
+            } catch (SQLException e) {
+                System.out.println("Error in sql: " + e.getMessage());
+                System.out.println(sql);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
     private <T> void insertManyToMany(T obj, Field field) throws Exception {
         ManyToMany annotation = field.getAnnotation(ManyToMany.class);
         String joinTable = annotation.joinTable();
